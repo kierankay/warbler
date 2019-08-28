@@ -5,7 +5,7 @@ from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
 from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
-from models import db, connect_db, User, Message
+from models import db, connect_db, User, Message, Liked_Message
 
 CURR_USER_KEY = "curr_user"
 
@@ -20,7 +20,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ECHO'] = False
 app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', "it's a secret")
-toolbar = DebugToolbarExtension(app)
+# toolbar = DebugToolbarExtension(app)
 
 connect_db(app)
 
@@ -51,7 +51,6 @@ def do_logout():
 
     if CURR_USER_KEY in session:
         del session[CURR_USER_KEY]
-
 
 
 @app.route('/signup', methods=["GET", "POST"])
@@ -95,7 +94,7 @@ def login():
     """Handle user login."""
 
     form = LoginForm()
-    
+
     if form.validate_on_submit():
         user = User.authenticate(form.username.data,
                                  form.password.data)
@@ -152,29 +151,32 @@ def users_show(user_id):
                 .order_by(Message.timestamp.desc())
                 .limit(100)
                 .all())
-    return render_template('users/show.html', user=g.user, messages=messages)
+    user = User.query.get_or_404(user_id)
+    return render_template('users/show.html', user=user, messages=messages)
 
 
 @app.route('/users/<int:user_id>/following')
 def show_following(user_id):
     """Show list of people this user is following."""
+    user = User.query.get_or_404(user_id)
 
     if not g.user:
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
-    return render_template('users/following.html', user=g.user)
+    return render_template('users/following.html', user=user)
 
 
 @app.route('/users/<int:user_id>/followers')
 def users_followers(user_id):
     """Show list of followers of this user."""
-
+    user = User.query.get_or_404(user_id)
+    
     if not g.user:
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
-    return render_template('users/followers.html', user=g.user)
+    return render_template('users/followers.html', user=user)
 
 
 @app.route('/users/follow/<int:follow_id>', methods=['POST'])
@@ -281,7 +283,8 @@ def messages_show(message_id):
     """Show a message."""
 
     msg = Message.query.get(message_id)
-    return render_template('messages/show.html', message=msg)
+    likers_ids = [liker.id for liker in msg.likers]
+    return render_template('messages/show.html', message=msg, likers_ids=likers_ids)
 
 
 @app.route('/messages/<int:message_id>/delete', methods=["POST"])
@@ -299,6 +302,40 @@ def messages_destroy(message_id):
     return redirect(f"/users/{g.user.id}")
 
 
+@app.route("/like", methods=["POST"])
+def like_message():
+    """Shows whether a message is liked."""
+
+    msg_id = int(request.form["message_id"])
+
+    liked_message = Liked_Message.query.filter(
+        Liked_Message.liker_id == g.user.id,
+        Liked_Message.liked_msg_id == msg_id).first()
+
+    if liked_message:
+        db.session.delete(liked_message)
+    else:
+        new_liked_message = Liked_Message(
+            liker_id=g.user.id, liked_msg_id=msg_id)
+
+        db.session.add(new_liked_message)
+    
+    db.session.commit()
+
+    return redirect(request.referrer)
+
+
+@app.route("/users/<int:user_id>/likes")
+def liked_messages(user_id):
+    """Shows all messages liked by a user."""
+
+    liked_messages_list = db.session.query(Liked_Message, Message).filter(
+        Liked_Message.liker_id == g.user.id).join(Message).all()
+
+    liked_msgs = [msg[1] for msg in liked_messages_list]
+
+    return render_template("likes.html", liked_msgs=liked_msgs)
+
 ##############################################################################
 # Homepage and error pages
 
@@ -312,13 +349,13 @@ def homepage():
     """
 
     if g.user:
+        follower_ids = [follower.id for follower in g.user.following]
         messages = (Message
-                    .query.filter(Message.user_id.in_(
-                        [follower.id for follower in g.user.following]))
+                    .query.filter(Message.user_id.in_(follower_ids))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
-
+        # likers_ids = [liker.id for liker in messages.likers]
         return render_template('home.html', messages=messages)
 
     else:

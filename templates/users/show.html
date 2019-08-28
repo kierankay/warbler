@@ -12,6 +12,18 @@
             <img src="{{ user.image_url }}" alt="user image" class="timeline-image">
           </a>
 
+          <form method="POST" action="/like">
+            <input type="text" name="message_id" value="{{ message.id }}" style="display: none">
+            <button class="btn" style="z-index: 10000000; position: relative">
+              {% for liker in message.likers %}
+                {% if g.user.id == liker.id %}
+                  <i class="fas fa-star"></i>
+                {% endif %}
+              {% else %}
+                <i class="far fa-star"></i>
+              {% endfor%}
+            </button>
+          </form>
           <div class="message-area">
             <a href="/users/{{ user.id }}">@{{ user.username }}</a>
             <span class="text-muted">{{ message.timestamp.strftime('%d %B %Y') }}</span>

@@ -32,6 +32,16 @@
               {% endif %}
             </div>
             <p class="single-message">{{ message.text }}</p>
+            <form method="POST" action="/like">
+              <input type="text" name="message_id" value="{{ message.id }}" style="display: none">
+              <button class="btn">
+                  {% if g.user.id in likers_ids %}
+                   <i class="fas fa-star"></i>
+                  {% else%}
+                    <i class="far fa-star"></i>
+                  {% endif %}
+              </button>
+            </form>
             <span class="text-muted">{{ message.timestamp.strftime('%d %B %Y') }}</span>
           </div>
         </li>

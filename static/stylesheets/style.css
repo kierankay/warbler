@@ -329,6 +329,11 @@ nav + .container {
   font-size: 12px;
 }
 
+#star-button {
+  z-index: 10000000;
+  position: relative;
+}
+
 .card-hero {
   width: 100%;
   position: absolute;

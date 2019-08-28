@@ -40,14 +40,14 @@
 
     <div class="col-lg-6 col-md-8 col-sm-12">
       <ul class="list-group" id="messages">
-        {% for msg in messages %}
+        {% for msg in liked_msgs %}
           <li class="list-group-item">
             <a href="/users/{{ msg.user.id }}">
               <img src="{{ msg.user.image_url }}" alt="" class="timeline-image">
             </a>
             <form method="POST" action="/like">
               <input type="text" name="message_id" value="{{ msg.id }}" style="display: none">
-              <button class="btn" style="z-index: 10000000; position: relative">
+              <button class="btn" id="star-button">
                 {% for liker in msg.likers %}
                   {% if g.user.id == liker.id %}
                     <i class="fas fa-star"></i>

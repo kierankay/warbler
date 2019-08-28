@@ -1,0 +1,5 @@
+INDEX.HTML
+1. Fixed the post action for unfollowing.
+
+EDIT.HTML
+1. Fixed form validation and password authentication handling.

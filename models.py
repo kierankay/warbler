@@ -88,6 +88,8 @@ class User(db.Model):
         secondaryjoin=(Follows.user_being_followed_id == id)
     )
 
+    liked = db.relationship("Liked_Message")
+
     def __repr__(self):
         return f"<User #{self.id}: {self.username}, {self.email}>"
 
@@ -171,6 +173,30 @@ class Message(db.Model):
     )
 
     user = db.relationship('User')
+
+    likers = db.relationship(
+        "User",
+        secondary="liked_messages",
+        backref="message"
+    )
+
+
+class Liked_Message(db.Model):
+    """User's liked messages."""
+
+    __tablename__ = "liked_messages"
+
+    liker_id = db.Column(
+        db.Integer,
+        db.ForeignKey('users.id', ondelete="cascade"),
+        primary_key=True
+    )
+
+    liked_msg_id = db.Column(
+        db.Integer,
+        db.ForeignKey('messages.id', ondelete="cascade"),
+        primary_key=True
+    )
 
 
 def connect_db(app):

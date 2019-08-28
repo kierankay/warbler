@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
+from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
 from models import db, connect_db, User, Message
 
 CURR_USER_KEY = "curr_user"
@@ -18,7 +18,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = (
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ECHO'] = False
-app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = True
+app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', "it's a secret")
 toolbar = DebugToolbarExtension(app)
 
@@ -51,6 +51,7 @@ def do_logout():
 
     if CURR_USER_KEY in session:
         del session[CURR_USER_KEY]
+
 
 
 @app.route('/signup', methods=["GET", "POST"])
@@ -94,7 +95,7 @@ def login():
     """Handle user login."""
 
     form = LoginForm()
-
+    
     if form.validate_on_submit():
         user = User.authenticate(form.username.data,
                                  form.password.data)
@@ -112,7 +113,10 @@ def login():
 @app.route('/logout')
 def logout():
     """Handle logout of user."""
+    do_logout()
 
+    flash('You have successfully logged out!', "success")
+    return redirect('/login')
     # IMPLEMENT THIS
 
 
@@ -140,8 +144,6 @@ def list_users():
 def users_show(user_id):
     """Show user profile."""
 
-    user = User.query.get_or_404(user_id)
-
     # snagging messages in order from the database;
     # user.messages won't be in order by default
     messages = (Message
@@ -150,7 +152,7 @@ def users_show(user_id):
                 .order_by(Message.timestamp.desc())
                 .limit(100)
                 .all())
-    return render_template('users/show.html', user=user, messages=messages)
+    return render_template('users/show.html', user=g.user, messages=messages)
 
 
 @app.route('/users/<int:user_id>/following')
@@ -161,8 +163,7 @@ def show_following(user_id):
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
-    user = User.query.get_or_404(user_id)
-    return render_template('users/following.html', user=user)
+    return render_template('users/following.html', user=g.user)
 
 
 @app.route('/users/<int:user_id>/followers')
@@ -173,8 +174,7 @@ def users_followers(user_id):
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
-    user = User.query.get_or_404(user_id)
-    return render_template('users/followers.html', user=user)
+    return render_template('users/followers.html', user=g.user)
 
 
 @app.route('/users/follow/<int:follow_id>', methods=['POST'])
@@ -210,7 +210,27 @@ def stop_following(follow_id):
 @app.route('/users/profile', methods=["GET", "POST"])
 def profile():
     """Update profile for current user."""
+    form = UserEditForm(obj=g.user)
 
+    if form.validate_on_submit():
+        pwd = form.password.data
+        if User.authenticate(username=g.user.username, password=pwd):
+            g.user.username = form.username.data
+            g.user.email = form.email.data
+            g.user.image_url = form.image_url.data
+            g.user.header_image_url = form.header_image_url.data
+            g.user.bio = form.bio.data
+
+            db.session.add(g.user)
+            db.session.commit()
+
+            flash('Profile successfully updated', 'success')
+            return redirect('/')
+        else:
+            flash('Incorrect password!', 'danger')
+            return redirect('/users/profile')
+    else:
+        return render_template('/users/edit.html', form=form)
     # IMPLEMENT THIS
 
 
@@ -293,7 +313,8 @@ def homepage():
 
     if g.user:
         messages = (Message
-                    .query
+                    .query.filter(Message.user_id.in_(
+                        [follower.id for follower in g.user.following]))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())

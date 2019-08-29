@@ -4,23 +4,20 @@
 #
 #    python -m unittest test_user_model.py
 
-
-import os
-from unittest import TestCase
-
-from models import db, User, Message, Follows
-
 # BEFORE we import our app, let's set an environmental variable
 # to use a different database for tests (we need to do this
 # before we import our app, since that will have already
 # connected to the database
-
+import os
 os.environ['DATABASE_URL'] = "postgresql:///warbler-test"
-
 
 # Now we can import app
 
 from app import app
+from unittest import TestCase
+from sqlalchemy.exc import IntegrityError
+from models import db, User, Message, Follows
+
 
 # Create our tables (we do this here, so we only create the tables
 # once for all tests --- in each test, we'll delete the data
@@ -30,7 +27,7 @@ db.create_all()
 
 
 class UserModelTestCase(TestCase):
-    """Test views for messages."""
+    """Test model for users."""
 
     def setUp(self):
         """Create test client, add sample data."""
@@ -48,17 +45,19 @@ class UserModelTestCase(TestCase):
     def test_user_model(self):
         """Does basic model work?"""
 
-        u = User(
+        u = User.signup(
             email="test@test.com",
             username="testuser",
-            password="HASHED_PASSWORD"
+            password="HASHED_PASSWORD",
+            image_url=""
         )
         db.session.add(u)
 
-        u2 = User(
+        u2 = User.signup(
             email="test2@test2.com",
             username="testuser2",
-            password="HASHED_PASSWORD2"
+            password="HASHED_PASSWORD2",
+            image_url=""
         )
         db.session.add(u2)
         db.session.commit()
@@ -68,7 +67,7 @@ class UserModelTestCase(TestCase):
             user_following_id=u2.id
         )
         db.session.add(follow)
-    
+
         db.session.commit()
 
         # Users should have no messages
@@ -93,3 +92,28 @@ class UserModelTestCase(TestCase):
 
         # User instance should return helpful repr on instance call
         self.assertEqual(str(u), f"<User #{u.id}: testuser, test@test.com>")
+
+        # Checking for new user creation through .signup class method
+        new_user = User.signup("new_user", "new_user@test.com", "HASHED_PW", "")
+        db.session.add(new_user)
+        db.session.commit()
+        self.assertEqual(str(new_user.username), 'new_user')
+
+        # Checking for invalid signup
+        new_user_invalid = User.signup("new_user2", "new_user@test.com", "HASHED_PW", "")
+        db.session.add(new_user_invalid)
+        # db.session.commit()
+        self.assertRaises(IntegrityError, db.session.commit)
+        db.session.rollback()
+
+        #authenticating a valid username
+        u2 = User.authenticate("testuser2", "HASHED_PASSWORD2")
+        self.assertEqual(u2.username, "testuser2")
+
+        #username failing authentication
+        u2_fail = User.authenticate("test", "HASHED_PASSWORD2")
+        self.assertEqual(u2_fail, False)
+
+        #password failing authentication
+        u2_fail_pw = User.authenticate("testuser2", "testtest")
+        self.assertEqual(u2_fail_pw, False)

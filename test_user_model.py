@@ -41,6 +41,10 @@ class UserModelTestCase(TestCase):
 
         self.client = app.test_client()
 
+    def tearDown(self):
+        """Clean up added sample data"""
+        db.session.rollback()
+
     def test_user_model(self):
         """Does basic model work?"""
 
@@ -49,10 +53,43 @@ class UserModelTestCase(TestCase):
             username="testuser",
             password="HASHED_PASSWORD"
         )
-
         db.session.add(u)
+
+        u2 = User(
+            email="test2@test2.com",
+            username="testuser2",
+            password="HASHED_PASSWORD2"
+        )
+        db.session.add(u2)
         db.session.commit()
 
-        # User should have no messages & no followers
+        follow = Follows(
+            user_being_followed_id=u.id,
+            user_following_id=u2.id
+        )
+        db.session.add(follow)
+    
+        db.session.commit()
+
+        # Users should have no messages
         self.assertEqual(len(u.messages), 0)
-        self.assertEqual(len(u.followers), 0)
+        self.assertEqual(len(u2.messages), 0)
+
+        # relationship property return correct number of followers
+        self.assertEqual(len(u.followers), 1)
+        self.assertEqual(len(u2.followers), 0)
+
+        # relationship property returns correct number of users followed
+        self.assertEqual(len(u.following), 0)
+        self.assertEqual(len(u2.following), 1)
+
+        # followed_by function returns the correct output
+        self.assertEqual(u.is_followed_by(u2), True)
+        self.assertEqual(u2.is_followed_by(u), False)
+
+        # is_following function returns the correct output
+        self.assertEqual(u.is_following(u2), False)
+        self.assertEqual(u2.is_following(u), True)
+
+        # User instance should return helpful repr on instance call
+        self.assertEqual(str(u), f"<User #{u.id}: testuser, test@test.com>")
